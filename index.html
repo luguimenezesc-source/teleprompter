@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Teleprompter">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Teleprompter</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon class="f" points="7 4 20 12 7 20 7 4"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect class="f" x="6" y="4" width="4" height="16" rx="1"/><rect class="f" x="14" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.8-3.4L23 10"/><path d="M1 14l4.7 4.4A9 9 0 0 0 20.5 15"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+</svg>
+
+<!-- ============ Biblioteca de roteiros ============ -->
+<main id="home" class="view">
+  <header class="appbar">
+    <h1>Teleprompter</h1>
+    <button id="btnNew" class="btn accent sm">+ Novo roteiro</button>
+  </header>
+  <div class="scroll">
+    <ul id="list" class="list"></ul>
+    <p id="emptyHint" class="hint" hidden>Nenhum roteiro ainda. Toque em “Novo roteiro” para começar.</p>
+    <p class="hint small">Dica: no Safari, toque em Compartilhar → Adicionar à Tela de Início para abrir em tela cheia, como um app.</p>
+  </div>
+</main>
+
+<!-- ============ Editor ============ -->
+<main id="editor" class="view" hidden>
+  <header class="appbar">
+    <button id="btnBack" class="icon-btn" aria-label="Voltar"><svg class="i"><use href="#i-back"/></svg></button>
+    <input id="titleInput" class="title-input" placeholder="Título do roteiro" maxlength="80" autocomplete="off">
+    <button id="btnDelete" class="icon-btn" aria-label="Apagar roteiro"><svg class="i"><use href="#i-trash"/></svg></button>
+  </header>
+  <textarea id="textInput" placeholder="Cole ou escreva seu roteiro aqui…" spellcheck="false"></textarea>
+  <footer class="actionbar">
+    <span id="stats" class="stats"></span>
+    <button id="btnRead" class="btn">Ler</button>
+    <button id="btnRecordFromEditor" class="btn rec"><svg class="i"><use href="#i-camera"/></svg>Gravar</button>
+  </footer>
+</main>
+
+<!-- ============ Teleprompter / câmera ============ -->
+<section id="prompter" hidden>
+  <div id="stage">
+    <video id="cam" playsinline muted autoplay></video>
+    <div id="textArea">
+      <div id="mirrorWrap">
+        <div id="scroller"><div id="textContent"></div></div>
+      </div>
+      <div id="marker"></div>
+    </div>
+  </div>
+  <div id="progress"></div>
+
+  <div class="topbar bars">
+    <button id="btnClose" class="icon-btn" aria-label="Fechar"><svg class="i"><use href="#i-close"/></svg></button>
+    <div id="hud" class="pill"></div>
+    <button id="btnFlip" class="icon-btn" aria-label="Alternar câmera frontal/traseira" hidden><svg class="i"><use href="#i-flip"/></svg></button>
+    <button id="btnCam" class="icon-btn" aria-label="Ligar câmera"><svg class="i"><use href="#i-camera"/></svg></button>
+  </div>
+
+  <div class="bottombar bars">
+    <div class="row r-speed">
+      <button id="btnRestart" class="icon-btn" aria-label="Voltar ao início"><svg class="i"><use href="#i-restart"/></svg></button>
+      <div class="stepper">
+        <button id="btnSlower" aria-label="Mais devagar"><svg class="i"><use href="#i-minus"/></svg></button>
+        <output><b id="wpmVal">140</b><small>palavras/min</small></output>
+        <button id="btnFaster" aria-label="Mais rápido"><svg class="i"><use href="#i-plus"/></svg></button>
+      </div>
+      <button id="btnSettings" class="icon-btn" aria-label="Ajustes"><svg class="i"><use href="#i-sliders"/></svg></button>
+    </div>
+    <div class="row r-main">
+      <button id="btnPlay" class="playbtn" aria-label="Iniciar rolagem"><svg class="i big"><use href="#i-play"/></svg></button>
+      <button id="btnRec" class="recbtn" aria-label="Gravar" hidden></button>
+    </div>
+  </div>
+
+  <div id="countdown" hidden></div>
+
+  <div id="settings" class="sheet" hidden>
+    <div class="sheet-body">
+      <div class="sheet-head"><h2>Ajustes</h2><button id="btnSettingsDone" class="btn sm accent">Concluir</button></div>
+
+      <label class="set col"><span>Tamanho do texto <output data-out="fontSize"></output></span>
+        <input type="range" data-key="fontSize" min="24" max="140" step="2"></label>
+      <label class="set col"><span>Margem lateral <output data-out="margin"></output></span>
+        <input type="range" data-key="margin" min="0" max="20" step="1"></label>
+      <label class="set col"><span>Altura do texto sobre a câmera <output data-out="area"></output></span>
+        <input type="range" data-key="area" min="30" max="100" step="5"></label>
+      <label class="set col"><span>Fundo escuro atrás do texto <output data-out="bg"></output></span>
+        <input type="range" data-key="bg" min="0" max="90" step="5"></label>
+
+      <div class="set"><span>Cor do texto</span>
+        <div class="seg" data-key="color">
+          <button data-val="#ffffff">Branco</button><button data-val="#ffe14d">Amarelo</button><button data-val="#7dffb0">Verde</button>
+        </div></div>
+      <div class="set"><span>Alinhamento</span>
+        <div class="seg" data-key="align"><button data-val="center">Centro</button><button data-val="left">Esquerda</button></div></div>
+      <div class="set"><span>Contagem regressiva</span>
+        <div class="seg" data-key="countdown"><button data-val="0">Não</button><button data-val="3">3 s</button><button data-val="5">5 s</button></div></div>
+      <div class="set"><span>Resolução</span>
+        <div class="seg" data-key="res"><button data-val="2160">4K</button><button data-val="1080">1080p</button><button data-val="720">720p</button></div></div>
+      <div class="set"><span>Quadros por segundo</span>
+        <div class="seg" data-key="fps"><button data-val="24">24</button><button data-val="30">30</button><button data-val="60">60</button></div></div>
+      <div class="set col"><span>Microfone (entrada de áudio)</span>
+        <select id="micSelect" data-key="audioId"></select>
+        <div class="meter"><i id="meterBar"></i></div></div>
+      <label class="set"><span>Reduzir ruído do microfone</span><input type="checkbox" class="switch" data-key="denoise"></label>
+      <p class="hint small left">4K e 60 fps dependem do aparelho e da câmera escolhida. O app avisa o que o iPhone realmente entregou. Os nomes dos microfones aparecem depois que a câmera é ligada.</p>
+
+      <label class="set"><span>Espelhar texto (para vidro/espelho)</span><input type="checkbox" class="switch" data-key="mirror"></label>
+      <label class="set"><span>Linha-guia de leitura</span><input type="checkbox" class="switch" data-key="marker"></label>
+      <label class="set"><span>Rolar o texto ao começar a gravar</span><input type="checkbox" class="switch" data-key="autoScroll"></label>
+    </div>
+  </div>
+
+  <div id="review" class="sheet" hidden>
+    <div class="sheet-body">
+      <div class="sheet-head"><h2>Gravação pronta</h2></div>
+      <video id="reviewVideo" controls playsinline></video>
+      <p id="reviewInfo" class="hint small"></p>
+      <div class="review-actions">
+        <button id="btnShare" class="btn accent"><svg class="i"><use href="#i-share"/></svg>Salvar / Compartilhar</button>
+        <button id="btnDownload" class="btn"><svg class="i"><use href="#i-download"/></svg>Baixar</button>
+        <button id="btnDiscard" class="btn danger">Descartar</button>
+      </div>
+      <p class="hint small">No iPhone: toque em “Salvar / Compartilhar” e escolha “Salvar Vídeo” para guardar na galeria.</p>
+    </div>
+  </div>
+</section>
+
+<div id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
