@@ -220,3 +220,27 @@ button:disabled { opacity: .4; }
 .meter { height: 6px; border-radius: 3px; background: #3a3a3c; overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: #34c759; transition: width .06s; }
 .hint.left { text-align: left; margin-top: 10px; }
+
+/* paisagem + câmera: texto numa caixa retangular na lateral, perto da lente */
+#prompter.cam.side #textArea {
+  top: calc(env(safe-area-inset-top) + 56px);
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  height: auto;
+  left: calc(env(safe-area-inset-left) + 8px);
+  right: auto;
+  width: calc(var(--boxw) * 1vw);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, var(--bgop));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+#prompter.cam.side.side-right #textArea { left: auto; right: calc(env(safe-area-inset-right) + 8px); }
+#prompter.cam.side #mirrorWrap {
+  -webkit-mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
+}
+#prompter.side #scroller { padding-left: 14px; padding-right: 14px; }
+@media (orientation: landscape) and (min-height: 521px) {
+  #prompter.cam.side #textArea { bottom: calc(env(safe-area-inset-bottom) + 190px); }
+}

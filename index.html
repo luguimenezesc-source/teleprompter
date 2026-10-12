@@ -103,12 +103,17 @@
     <div class="sheet-body">
       <div class="sheet-head"><h2>Ajustes</h2><button id="btnSettingsDone" class="btn sm accent">Concluir</button></div>
 
-      <label class="set col"><span>Tamanho do texto <output data-out="fontSize"></output></span>
+      <label class="set col"><span><span id="fontLabel">Tamanho do texto</span> <output data-out="fontSize"></output></span>
         <input type="range" data-key="fontSize" min="24" max="140" step="2"></label>
       <label class="set col"><span>Margem lateral <output data-out="margin"></output></span>
         <input type="range" data-key="margin" min="0" max="20" step="1"></label>
       <label class="set col"><span>Altura do texto sobre a câmera <output data-out="area"></output></span>
         <input type="range" data-key="area" min="30" max="100" step="5"></label>
+      <label class="set"><span>Caixa de texto na lateral (paisagem)</span><input type="checkbox" class="switch" data-key="landscapeBox"></label>
+      <div class="set"><span>Lado da caixa</span>
+        <div class="seg" data-key="boxSide"><button data-val="auto">Auto</button><button data-val="left">Esquerda</button><button data-val="right">Direita</button></div></div>
+      <label class="set col"><span>Largura da caixa <output data-out="boxW"></output></span>
+        <input type="range" data-key="boxW" min="25" max="60" step="1"></label>
       <label class="set col"><span>Fundo escuro atrás do texto <output data-out="bg"></output></span>
         <input type="range" data-key="bg" min="0" max="90" step="5"></label>
 

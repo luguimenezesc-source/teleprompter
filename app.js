@@ -49,7 +49,8 @@ const DEFAULTS = {
   wpm: 140, fontSize: 52, margin: 5, area: 55, bg: 45,
   color: '#ffffff', align: 'center', mirror: false, marker: true,
   countdown: 3, autoScroll: true,
-  res: 1080, fps: 30, audioId: '', denoise: true
+  res: 1080, fps: 30, audioId: '', denoise: true,
+  landscapeBox: true, boxSide: 'auto', boxW: 40, fontSizeBox: 36
 };
 const SAMPLE_TEXT =
 `Olá! Este é o seu primeiro roteiro no Teleprompter.
@@ -154,7 +155,24 @@ function closeEditor() {
 }
 
 /* ================= teleprompter ================= */
-const MARKER = 0.32; // posição da linha-guia dentro da área de texto
+// posição da linha-guia dentro da área de texto: no meio na caixa lateral (na altura da lente), mais alta no resto
+const markerFrac = () => (isSide() ? 0.5 : 0.32);
+
+// paisagem + câmera ligada: o texto vai numa caixa retangular na lateral, perto da lente
+function isSide() { return P.camOn && settings.landscapeBox && innerWidth > innerHeight; }
+// lado da lente: no iPhone ela fica do lado do entalhe, que é o lado com a maior área segura
+function sideIsRight() {
+  if (settings.boxSide === 'left') return false;
+  if (settings.boxSide === 'right') return true;
+  const probe = h('div', { style: 'position:fixed;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)' });
+  document.body.append(probe);
+  const cs = getComputedStyle(probe);
+  const left = parseFloat(cs.paddingLeft) || 0, right = parseFloat(cs.paddingRight) || 0;
+  probe.remove();
+  return right > left + 8;
+}
+// a caixa lateral tem tamanho de fonte próprio
+const fontKey = () => (isSide() ? 'fontSizeBox' : 'fontSize');
 const P = {
   script: null, pos: 0, contentH: 1, words: 1, playing: false, raf: 0, last: 0, drag: null,
   counting: false, cancelCountdown: null, barsTimer: 0, wake: null,
@@ -202,7 +220,11 @@ function closePrompter() {
 /* ---------- layout & rolagem ---------- */
 function applySettings() {
   const el = $('#prompter');
-  el.style.setProperty('--fs', settings.fontSize + 'px');
+  const side = isSide();
+  el.classList.toggle('side', side);
+  el.classList.toggle('side-right', side && sideIsRight());
+  el.style.setProperty('--boxw', settings.boxW);
+  el.style.setProperty('--fs', settings[fontKey()] + 'px');
   el.style.setProperty('--margin', settings.margin);
   el.style.setProperty('--area', settings.area / 100);
   el.style.setProperty('--bgop', settings.bg / 100);
@@ -210,7 +232,6 @@ function applySettings() {
   el.style.setProperty('--align', settings.align);
   $('#mirrorWrap').classList.toggle('mirror', settings.mirror);
   el.classList.toggle('nomarker', !settings.marker);
-  $('#marker').style.top = (MARKER * 100) + '%';
   $('#wpmVal').textContent = settings.wpm;
   syncSettingsUi();
   relayout(true);
@@ -220,9 +241,11 @@ function relayout(keepRatio = true) {
   const H = $('#textArea').clientHeight;
   if (!H) return;
   const ratio = keepRatio && P.contentH ? P.pos / P.contentH : 0;
+  const m = markerFrac();
+  $('#marker').style.top = (m * 100) + '%';
   const sc = $('#scroller');
-  sc.style.paddingTop = (H * MARKER) + 'px';
-  sc.style.paddingBottom = (H * (1 - MARKER)) + 'px';
+  sc.style.paddingTop = (H * m) + 'px';
+  sc.style.paddingBottom = (H * (1 - m)) + 'px';
   P.contentH = Math.max($('#textContent').offsetHeight, 1);
   P.pos = clamp(ratio * P.contentH, 0, P.contentH);
   render();
@@ -427,7 +450,7 @@ async function cameraOn() {
   try { await openStream(); } catch (e) { toast(camError(e)); return false; }
   P.camOn = true;
   $('#prompter').classList.add('cam');
-  syncCamUi(); updateHud(); relayout(true);
+  syncCamUi(); updateHud(); applySettings();
   return true;
 }
 
@@ -436,7 +459,7 @@ function cameraOff() {
   closeStream();
   P.camOn = false;
   $('#prompter').classList.remove('cam');
-  syncCamUi(); updateHud(); relayout(true);
+  syncCamUi(); updateHud(); applySettings();
 }
 
 async function flipCamera() {
@@ -483,6 +506,10 @@ let rzTimer;
 const onResize = () => { clearTimeout(rzTimer); rzTimer = setTimeout(onOrientation, 400); };
 addEventListener('resize', onResize);
 addEventListener('orientationchange', onResize);
+// o layout (caixa lateral) muda na hora, sem esperar a câmera reabrir
+const onLayout = () => { if (currentView === 'prompter') applySettings(); };
+addEventListener('resize', onLayout);
+addEventListener('orientationchange', () => setTimeout(onLayout, 150));
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || currentView !== 'prompter') return;
@@ -626,14 +653,18 @@ function downloadReview() {
 /* ================= ajustes ================= */
 function syncSettingsUi() {
   $$('#settings [data-key]').forEach(el => {
-    const v = settings[el.dataset.key];
+    const v = settings[el.dataset.key === 'fontSize' ? fontKey() : el.dataset.key];
     if (el.matches('input[type=range]')) el.value = v;
     else if (el.matches('input[type=checkbox]')) el.checked = !!v;
     else if (el.matches('select')) { el.value = String(v); if (el.selectedIndex < 0) el.value = ''; }
     else if (el.classList.contains('seg')) $$('button', el).forEach(b => b.classList.toggle('on', b.dataset.val === String(v)));
   });
-  const units = { fontSize: 'px', margin: '%', area: '%', bg: '%' };
-  $$('#settings [data-out]').forEach(o => { o.textContent = settings[o.dataset.out] + units[o.dataset.out]; });
+  const units = { fontSize: 'px', margin: '%', area: '%', bg: '%', boxW: '%' };
+  $$('#settings [data-out]').forEach(o => {
+    const k = o.dataset.out === 'fontSize' ? fontKey() : o.dataset.out;
+    o.textContent = settings[k] + units[o.dataset.out];
+  });
+  $('#fontLabel').textContent = isSide() ? 'Tamanho do texto (caixa lateral)' : 'Tamanho do texto';
 }
 
 function setSetting(key, val) {
@@ -647,7 +678,7 @@ function setSetting(key, val) {
 
 $$('#settings [data-key]').forEach(el => {
   const key = el.dataset.key;
-  if (el.matches('input[type=range]')) el.addEventListener('input', () => setSetting(key, Number(el.value)));
+  if (el.matches('input[type=range]')) el.addEventListener('input', () => setSetting(key === 'fontSize' ? fontKey() : key, Number(el.value)));
   else if (el.matches('input[type=checkbox]')) el.addEventListener('change', () => setSetting(key, el.checked));
   else if (el.matches('select')) el.addEventListener('change', () => setSetting(key, el.value));
   else if (el.classList.contains('seg')) el.addEventListener('click', e => {
@@ -763,8 +794,8 @@ document.addEventListener('keydown', e => {
   else if (key === 'm' || key === 'M') setSetting('mirror', !settings.mirror);
   else if (key === 'c' || key === 'C') (P.camOn ? cameraOff() : cameraOn());
   else if (key === 'r' || key === 'R') toggleRecord();
-  else if (key === '+' || key === '=') setSetting('fontSize', clamp(settings.fontSize + 4, 24, 140));
-  else if (key === '-') setSetting('fontSize', clamp(settings.fontSize - 4, 24, 140));
+  else if (key === '+' || key === '=') setSetting(fontKey(), clamp(settings[fontKey()] + 4, 24, 140));
+  else if (key === '-') setSetting(fontKey(), clamp(settings[fontKey()] - 4, 24, 140));
   else if (key === 'Escape') closePrompter();
 });
 
