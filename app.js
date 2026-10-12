@@ -46,11 +46,11 @@ const store = {
 };
 
 const DEFAULTS = {
-  wpm: 140, fontSize: 52, margin: 5, area: 55, bg: 45,
+  wpm: 140, fontSize: 52, margin: 5, bg: 45,
   color: '#ffffff', align: 'center', mirror: false, marker: true,
   countdown: 3, autoScroll: true,
   res: 1080, fps: 30, audioId: '', denoise: true,
-  landscapeBox: true, boxSide: 'auto', boxW: 40, fontSizeBox: 36
+  fontSizeBox: 36, markerPos: 32, markerPosBox: 50, bitrate: 1, boxes: {}
 };
 const SAMPLE_TEXT =
 `Olá! Este é o seu primeiro roteiro no Teleprompter.
@@ -155,24 +155,25 @@ function closeEditor() {
 }
 
 /* ================= teleprompter ================= */
-// posição da linha-guia dentro da área de texto: no meio na caixa lateral (na altura da lente), mais alta no resto
-const markerFrac = () => (isSide() ? 0.5 : 0.32);
+// paisagem com câmera ligada: tamanho de fonte e linha-guia próprios
+function isSide() { return P.camOn && innerWidth > innerHeight; }
+const fontKey = () => (isSide() ? 'fontSizeBox' : 'fontSize');
+const markerKey = () => (isSide() ? 'markerPosBox' : 'markerPos');
+const markerFrac = () => settings[markerKey()] / 100;
+// alguns ajustes mudam de chave conforme a orientação
+const skey = k => (k === 'fontSize' ? fontKey() : k === 'markerPos' ? markerKey() : k);
 
-// paisagem + câmera ligada: o texto vai numa caixa retangular na lateral, perto da lente
-function isSide() { return P.camOn && settings.landscapeBox && innerWidth > innerHeight; }
-// lado da lente: no iPhone ela fica do lado do entalhe, que é o lado com a maior área segura
-function sideIsRight() {
-  if (settings.boxSide === 'left') return false;
-  if (settings.boxSide === 'right') return true;
-  const probe = h('div', { style: 'position:fixed;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)' });
+// áreas seguras (entalhe / barra inferior) em px
+function safeInsets() {
+  const probe = h('div', { style: 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)' });
   document.body.append(probe);
   const cs = getComputedStyle(probe);
-  const left = parseFloat(cs.paddingLeft) || 0, right = parseFloat(cs.paddingRight) || 0;
+  const r = { top: parseFloat(cs.paddingTop) || 0, right: parseFloat(cs.paddingRight) || 0, bottom: parseFloat(cs.paddingBottom) || 0, left: parseFloat(cs.paddingLeft) || 0 };
   probe.remove();
-  return right > left + 8;
+  return r;
 }
-// a caixa lateral tem tamanho de fonte próprio
-const fontKey = () => (isSide() ? 'fontSizeBox' : 'fontSize');
+// a lente fica do lado do entalhe, que é o lado com a maior área segura
+const sideIsRight = () => { const s = safeInsets(); return s.right > s.left + 8; };
 const P = {
   script: null, pos: 0, contentH: 1, words: 1, playing: false, raf: 0, last: 0, drag: null,
   counting: false, cancelCountdown: null, barsTimer: 0, wake: null,
@@ -207,6 +208,7 @@ function closePrompter() {
   if (P.recording) return toast('Pare a gravação antes de sair.');
   if (!$('#review').hidden) return;
   P.cancelCountdown?.();
+  exitBoxEdit();
   setPlaying(false);
   closeStream();
   P.camOn = false;
@@ -220,13 +222,9 @@ function closePrompter() {
 /* ---------- layout & rolagem ---------- */
 function applySettings() {
   const el = $('#prompter');
-  const side = isSide();
-  el.classList.toggle('side', side);
-  el.classList.toggle('side-right', side && sideIsRight());
-  el.style.setProperty('--boxw', settings.boxW);
   el.style.setProperty('--fs', settings[fontKey()] + 'px');
   el.style.setProperty('--margin', settings.margin);
-  el.style.setProperty('--area', settings.area / 100);
+  applyBox();
   el.style.setProperty('--bgop', settings.bg / 100);
   el.style.setProperty('--text-color', settings.color);
   el.style.setProperty('--align', settings.align);
@@ -322,6 +320,7 @@ function bump() {
 /* ---------- gestos ---------- */
 const stage = $('#stage');
 stage.addEventListener('pointerdown', e => {
+  if (P.editBox) return;
   const wasCounting = P.counting;
   if (wasCounting) P.cancelCountdown?.();
   stage.setPointerCapture(e.pointerId);
@@ -420,6 +419,7 @@ async function openStream() {
   updateHud();
   reportActual();
   refreshMics();
+  renderFmtSummary();
 }
 
 // avisa quando o aparelho não entregou a resolução/fps pedidos
@@ -476,12 +476,14 @@ function syncCamUi() {
   $('#btnCam').setAttribute('aria-label', P.camOn ? 'Desligar câmera' : 'Ligar câmera');
   $('#btnFlip').hidden = !P.camOn;
   $('#btnRec').hidden = !P.camOn;
+  $('#btnBox').hidden = !P.camOn;
 }
 
 function updateHud() {
   const hud = $('#hud');
   hud.replaceChildren();
   hud.classList.toggle('rec', P.recording);
+  hud.classList.toggle('tap', P.camOn && !P.recording); // toque abre a aba "Formato do vídeo"
   if (P.recording) {
     const mb = P.recBytes / 1e6;
     hud.append(h('span', { class: 'recdot' }), `${fmtClock(Date.now() - P.recStart)} · ${mb.toFixed(mb < 10 ? 1 : 0)} MB`);
@@ -544,7 +546,7 @@ async function toggleRecord() {
 function videoBitrate() {
   const base = { 2160: 30e6, 1080: 10e6, 720: 5e6 }[settings.res] || 10e6;
   const k = settings.fps >= 60 ? 1.7 : settings.fps <= 24 ? 0.85 : 1;
-  return Math.round(base * k);
+  return Math.round(base * k * (settings.bitrate || 1));
 }
 
 function beginRecording() {
@@ -653,18 +655,16 @@ function downloadReview() {
 /* ================= ajustes ================= */
 function syncSettingsUi() {
   $$('#settings [data-key]').forEach(el => {
-    const v = settings[el.dataset.key === 'fontSize' ? fontKey() : el.dataset.key];
+    const v = settings[skey(el.dataset.key)];
     if (el.matches('input[type=range]')) el.value = v;
     else if (el.matches('input[type=checkbox]')) el.checked = !!v;
     else if (el.matches('select')) { el.value = String(v); if (el.selectedIndex < 0) el.value = ''; }
     else if (el.classList.contains('seg')) $$('button', el).forEach(b => b.classList.toggle('on', b.dataset.val === String(v)));
   });
-  const units = { fontSize: 'px', margin: '%', area: '%', bg: '%', boxW: '%' };
-  $$('#settings [data-out]').forEach(o => {
-    const k = o.dataset.out === 'fontSize' ? fontKey() : o.dataset.out;
-    o.textContent = settings[k] + units[o.dataset.out];
-  });
-  $('#fontLabel').textContent = isSide() ? 'Tamanho do texto (caixa lateral)' : 'Tamanho do texto';
+  const units = { fontSize: 'px', margin: '%', bg: '%', markerPos: '%' };
+  $$('#settings [data-out]').forEach(o => { o.textContent = settings[skey(o.dataset.out)] + units[o.dataset.out]; });
+  $('#fontLabel').textContent = isSide() ? 'Tamanho do texto (paisagem com câmera)' : 'Tamanho do texto';
+  renderFmtSummary();
 }
 
 function setSetting(key, val) {
@@ -672,13 +672,13 @@ function setSetting(key, val) {
   store.set('tp.settings.v1', settings);
   applySettings();
   if (RESTART_KEYS.includes(key) && P.camOn && !P.recording) {
-    openStream().then(() => { if (!$('#settings').hidden) startMeter(); }).catch(e => toast(camError(e)));
+    openStream().then(() => { if (!$('#settings').hidden && P.tab === 'format') startMeter(); }).catch(e => toast(camError(e)));
   }
 }
 
 $$('#settings [data-key]').forEach(el => {
   const key = el.dataset.key;
-  if (el.matches('input[type=range]')) el.addEventListener('input', () => setSetting(key === 'fontSize' ? fontKey() : key, Number(el.value)));
+  if (el.matches('input[type=range]')) el.addEventListener('input', () => setSetting(skey(key), Number(el.value)));
   else if (el.matches('input[type=checkbox]')) el.addEventListener('change', () => setSetting(key, el.checked));
   else if (el.matches('select')) el.addEventListener('change', () => setSetting(key, el.value));
   else if (el.classList.contains('seg')) el.addEventListener('click', e => {
@@ -692,13 +692,14 @@ $$('#settings [data-key]').forEach(el => {
 let meter = null;
 const RESTART_KEYS = ['res', 'fps', 'audioId', 'denoise']; // mudar isso reabre a câmera
 
-function openSettings() {
+function openSettings(tab) {
   setPlaying(false);
+  showTab(typeof tab === 'string' ? tab : (P.tab || 'text'));
   syncSettingsUi();
   RESTART_KEYS.forEach(k => $$(`#settings [data-key="${k}"], #settings [data-key="${k}"] button`).forEach(el => { el.disabled = P.recording; }));
   $('#settings').hidden = false;
   refreshMics();
-  if (P.camOn && !P.recording) startMeter();
+  if (P.tab === 'format' && P.camOn && !P.recording) startMeter();
 }
 function closeSheets() { $('#settings').hidden = true; stopMeter(); }
 
@@ -748,6 +749,162 @@ function stopMeter() {
   $('#meterBar').style.width = '0';
 }
 
+/* ================= caixa de texto: mover e redimensionar ================= */
+const MIN_W = 110, MIN_H = 80; // menor tamanho da caixa, em px
+P.editBox = false;
+P.tab = 'text';
+
+// cada orientação guarda a sua caixa: retrato, paisagem com a lente à esquerda e à direita
+const boxKind = () => (innerWidth <= innerHeight ? 'portrait' : sideIsRight() ? 'landR' : 'landL');
+
+function clampBox(b) {
+  const W = innerWidth, H = innerHeight;
+  const w = clamp(b.w, MIN_W / W, 1), hh = clamp(b.h, MIN_H / H, 1);
+  return { x: clamp(b.x, 0, 1 - w), y: clamp(b.y, 0, 1 - hh), w, h: hh };
+}
+
+function defaultBox(kind) {
+  const W = innerWidth, H = innerHeight, s = safeInsets();
+  const top = s.top + 56;
+  if (kind === 'portrait') return { x: 0, y: top / H, w: 1, h: 0.55 * (H - top) / H };
+  const bottom = s.bottom + (H > 520 ? 190 : 84);
+  const w = 0.4;
+  return {
+    x: kind === 'landR' ? 1 - w - (s.right + 8) / W : (s.left + 8) / W,
+    y: top / H, w, h: Math.max(0.25, (H - top - bottom) / H)
+  };
+}
+
+function currentBox() {
+  const kind = boxKind();
+  return clampBox(settings.boxes?.[kind] || defaultBox(kind));
+}
+
+// sem câmera o texto ocupa a tela toda; com câmera, ocupa a caixa
+function applyBox() {
+  const b = P.camOn ? currentBox() : null;
+  for (const el of [$('#textArea'), $('#boxEdit')]) {
+    const st = el.style;
+    st.left = b ? b.x * 100 + '%' : '';
+    st.top = b ? b.y * 100 + '%' : '';
+    st.width = b ? b.w * 100 + '%' : '';
+    st.height = b ? b.h * 100 + '%' : '';
+    st.right = st.bottom = b ? 'auto' : '';
+  }
+  if (b && P.editBox) placeBoxbar(b);
+}
+
+// a barra de botões procura um canto livre, para nunca cobrir as alças da caixa
+function placeBoxbar(b) {
+  const bar = $('#boxbar'), W = innerWidth, H = innerHeight, s = safeInsets();
+  const bw = bar.offsetWidth, bh = bar.offsetHeight, m = 12, pad = 26;
+  const L = b.x * W - pad, T = b.y * H - pad, R = (b.x + b.w) * W + pad, B = (b.y + b.h) * H + pad;
+  const cx = (W - bw) / 2, bot = H - bh - m - s.bottom, top = m + s.top;
+  const lft = m + s.left, rgt = W - bw - m - s.right;
+  const spots = [[cx, bot], [cx, top], [rgt, bot], [lft, bot], [rgt, top], [lft, top]];
+  const free = ([x, y]) => x + bw <= L || x >= R || y + bh <= T || y >= B;
+  const [x, y] = spots.find(free) || spots[0];
+  bar.style.left = x + 'px';
+  bar.style.top = y + 'px';
+}
+
+function saveBox(b, persist = true) {
+  settings.boxes = { ...settings.boxes, [boxKind()]: clampBox(b) };
+  applyBox();
+  if (persist) store.set('tp.settings.v1', settings);
+}
+function resetBox() {
+  const boxes = { ...settings.boxes };
+  delete boxes[boxKind()];
+  settings.boxes = boxes;
+  store.set('tp.settings.v1', settings);
+  applyBox();
+}
+
+function enterBoxEdit() {
+  if (!P.camOn) return toast('Ligue a câmera para ajustar a caixa de texto.');
+  if (P.recording) return toast('Pare a gravação para ajustar a caixa.');
+  closeSheets();
+  setPlaying(false);
+  P.editBox = true;
+  $('#prompter').classList.add('editing');
+  $('#boxEdit').hidden = false;
+  $('#boxbar').hidden = false;
+  applyBox();
+}
+function exitBoxEdit() {
+  if (!P.editBox) return;
+  P.editBox = false;
+  $('#prompter').classList.remove('editing');
+  $('#boxEdit').hidden = true;
+  $('#boxbar').hidden = true;
+  store.set('tp.settings.v1', settings);
+}
+
+// arrastar o corpo move; arrastar uma alça (data-h = n, s, e, w, ne, nw, se, sw) redimensiona
+const boxEl = $('#boxEdit');
+let boxDrag = null;
+boxEl.addEventListener('pointerdown', e => {
+  boxEl.setPointerCapture(e.pointerId);
+  const r = $('#textArea').getBoundingClientRect();
+  boxDrag = { mode: e.target.dataset.h || 'move', sx: e.clientX, sy: e.clientY, l: r.left, t: r.top, r: r.right, b: r.bottom };
+  e.preventDefault();
+});
+boxEl.addEventListener('pointermove', e => {
+  if (!boxDrag) return;
+  const dx = e.clientX - boxDrag.sx, dy = e.clientY - boxDrag.sy, W = innerWidth, H = innerHeight;
+  let { l, t, r, b } = boxDrag;
+  if (boxDrag.mode === 'move') {
+    const w = r - l, hh = b - t;
+    l = clamp(l + dx, 0, W - w); t = clamp(t + dy, 0, H - hh); r = l + w; b = t + hh;
+  } else {
+    const m = boxDrag.mode;
+    if (m.includes('w')) l = clamp(l + dx, 0, r - MIN_W);
+    if (m.includes('e')) r = clamp(r + dx, l + MIN_W, W);
+    if (m.includes('n')) t = clamp(t + dy, 0, b - MIN_H);
+    if (m.includes('s')) b = clamp(b + dy, t + MIN_H, H);
+  }
+  saveBox({ x: l / W, y: t / H, w: (r - l) / W, h: (b - t) / H }, false);
+});
+const endBoxDrag = () => { if (boxDrag) { boxDrag = null; store.set('tp.settings.v1', settings); } };
+boxEl.addEventListener('pointerup', endBoxDrag);
+boxEl.addEventListener('pointercancel', endBoxDrag);
+
+$('#btnBox').addEventListener('click', enterBoxEdit);
+$('#btnBoxFromSettings').addEventListener('click', enterBoxEdit);
+$('#btnBoxDone').addEventListener('click', exitBoxEdit);
+$('#btnBoxReset').addEventListener('click', resetBox);
+$('#btnBoxFull').addEventListener('click', () => saveBox({ x: 0, y: 0, w: 1, h: 1 }));
+
+/* ================= aba "Formato do vídeo" ================= */
+const fmtNum = (n, d = 0) => n.toFixed(d).replace('.', ',');
+
+function renderFmtSummary() {
+  const box = $('#fmtSummary');
+  if (!box) return;
+  const s = P.stream?.getVideoTracks()[0]?.getSettings?.();
+  const bytesPerSec = (videoBitrate() + 128_000) / 8;
+  const q = { 0.6: 'Econômica', 1: 'Padrão', 1.6: 'Alta' }[settings.bitrate] || 'Padrão';
+  box.replaceChildren(
+    h('div', {}, h('b', { text: 'Pedido: ' }), `${RES_LABEL[settings.res]} · ${settings.fps} fps · ${q}`),
+    h('div', {}, h('b', { text: 'Câmera entregando: ' }), s && s.width ? resText(s) : 'câmera desligada'),
+    h('div', {}, h('b', { text: 'Tamanho: ' }), `≈ ${fmtNum(bytesPerSec * 60 / 1e6)} MB/min · máx. ≈ ${fmtNum(MAX_BYTES / bytesPerSec / 60, 1)} min por gravação`)
+  );
+}
+
+function showTab(name) {
+  P.tab = name;
+  $('#tab-text').hidden = name !== 'text';
+  $('#tab-format').hidden = name !== 'format';
+  $$('#setTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $('#settings .sheet-head h2').textContent = name === 'format' ? 'Formato do vídeo' : 'Ajustes';
+  renderFmtSummary();
+  if (name === 'format') { refreshMics(); if (P.camOn && !P.recording && !$('#settings').hidden) startMeter(); }
+  else stopMeter();
+}
+$('#setTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); });
+$('#hud').addEventListener('click', () => { if (P.camOn && !P.recording) openSettings('format'); });
+
 /* ================= eventos ================= */
 $('#btnNew').addEventListener('click', newScript);
 $('#btnBack').addEventListener('click', closeEditor);
@@ -767,7 +924,7 @@ $('#btnPlay').addEventListener('click', togglePlay);
 $('#btnRestart').addEventListener('click', restart);
 $('#btnSlower').addEventListener('click', () => changeWpm(-10));
 $('#btnFaster').addEventListener('click', () => changeWpm(10));
-$('#btnSettings').addEventListener('click', openSettings);
+$('#btnSettings').addEventListener('click', () => openSettings());
 $('#btnSettingsDone').addEventListener('click', closeSheets);
 $('#settings').addEventListener('click', e => { if (e.target === $('#settings')) closeSheets(); });
 $('#btnCam').addEventListener('click', () => (P.camOn ? cameraOff() : cameraOn()));
@@ -783,6 +940,7 @@ $$('.bars').forEach(b => b.addEventListener('pointerdown', bump));
 document.addEventListener('keydown', e => {
   if (currentView !== 'prompter') return;
   if (!$('#review').hidden) return;
+  if (P.editBox) { if (e.key === 'Escape' || e.key === 'Enter') exitBoxEdit(); return; }
   if (!$('#settings').hidden) { if (e.key === 'Escape') closeSheets(); return; }
   const key = e.key;
   const handled = () => e.preventDefault();

@@ -31,6 +31,7 @@
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-resize" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
 </svg>
 
 <!-- ============ Biblioteca de roteiros ============ -->
@@ -74,6 +75,12 @@
   </div>
   <div id="progress"></div>
 
+  <div id="boxEdit" hidden>
+    <span class="hdl" data-h="nw"></span><span class="hdl" data-h="n"></span><span class="hdl" data-h="ne"></span>
+    <span class="hdl" data-h="w"></span><span class="hdl" data-h="e"></span>
+    <span class="hdl" data-h="sw"></span><span class="hdl" data-h="s"></span><span class="hdl" data-h="se"></span>
+  </div>
+
   <div class="topbar bars">
     <button id="btnClose" class="icon-btn" aria-label="Fechar"><svg class="i"><use href="#i-close"/></svg></button>
     <div id="hud" class="pill"></div>
@@ -90,10 +97,20 @@
         <button id="btnFaster" aria-label="Mais rápido"><svg class="i"><use href="#i-plus"/></svg></button>
       </div>
       <button id="btnSettings" class="icon-btn" aria-label="Ajustes"><svg class="i"><use href="#i-sliders"/></svg></button>
+      <button id="btnBox" class="icon-btn" aria-label="Ajustar tamanho e posição da caixa de texto" hidden><svg class="i"><use href="#i-resize"/></svg></button>
     </div>
     <div class="row r-main">
       <button id="btnPlay" class="playbtn" aria-label="Iniciar rolagem"><svg class="i big"><use href="#i-play"/></svg></button>
       <button id="btnRec" class="recbtn" aria-label="Gravar" hidden></button>
+    </div>
+  </div>
+
+  <div id="boxbar" hidden>
+    <span>Arraste a caixa para mover · puxe as bolinhas para redimensionar</span>
+    <div class="row">
+      <button id="btnBoxReset" class="btn sm">Padrão</button>
+      <button id="btnBoxFull" class="btn sm">Tela cheia</button>
+      <button id="btnBoxDone" class="btn sm accent">Concluir</button>
     </div>
   </div>
 
@@ -102,42 +119,50 @@
   <div id="settings" class="sheet" hidden>
     <div class="sheet-body">
       <div class="sheet-head"><h2>Ajustes</h2><button id="btnSettingsDone" class="btn sm accent">Concluir</button></div>
+      <div class="seg tabs" id="setTabs"><button data-tab="text">Texto</button><button data-tab="format">Formato do vídeo</button></div>
 
-      <label class="set col"><span><span id="fontLabel">Tamanho do texto</span> <output data-out="fontSize"></output></span>
-        <input type="range" data-key="fontSize" min="24" max="140" step="2"></label>
-      <label class="set col"><span>Margem lateral <output data-out="margin"></output></span>
-        <input type="range" data-key="margin" min="0" max="20" step="1"></label>
-      <label class="set col"><span>Altura do texto sobre a câmera <output data-out="area"></output></span>
-        <input type="range" data-key="area" min="30" max="100" step="5"></label>
-      <label class="set"><span>Caixa de texto na lateral (paisagem)</span><input type="checkbox" class="switch" data-key="landscapeBox"></label>
-      <div class="set"><span>Lado da caixa</span>
-        <div class="seg" data-key="boxSide"><button data-val="auto">Auto</button><button data-val="left">Esquerda</button><button data-val="right">Direita</button></div></div>
-      <label class="set col"><span>Largura da caixa <output data-out="boxW"></output></span>
-        <input type="range" data-key="boxW" min="25" max="60" step="1"></label>
-      <label class="set col"><span>Fundo escuro atrás do texto <output data-out="bg"></output></span>
-        <input type="range" data-key="bg" min="0" max="90" step="5"></label>
+      <section id="tab-text">
+        <label class="set col"><span><span id="fontLabel">Tamanho do texto</span> <output data-out="fontSize"></output></span>
+          <input type="range" data-key="fontSize" min="24" max="140" step="2"></label>
+        <label class="set col"><span>Margem lateral <output data-out="margin"></output></span>
+          <input type="range" data-key="margin" min="0" max="20" step="1"></label>
+        <label class="set col"><span>Fundo escuro atrás do texto <output data-out="bg"></output></span>
+          <input type="range" data-key="bg" min="0" max="90" step="5"></label>
+        <label class="set col"><span>Posição da linha-guia <output data-out="markerPos"></output></span>
+          <input type="range" data-key="markerPos" min="10" max="90" step="1"></label>
 
-      <div class="set"><span>Cor do texto</span>
-        <div class="seg" data-key="color">
-          <button data-val="#ffffff">Branco</button><button data-val="#ffe14d">Amarelo</button><button data-val="#7dffb0">Verde</button>
-        </div></div>
-      <div class="set"><span>Alinhamento</span>
-        <div class="seg" data-key="align"><button data-val="center">Centro</button><button data-val="left">Esquerda</button></div></div>
-      <div class="set"><span>Contagem regressiva</span>
-        <div class="seg" data-key="countdown"><button data-val="0">Não</button><button data-val="3">3 s</button><button data-val="5">5 s</button></div></div>
-      <div class="set"><span>Resolução</span>
-        <div class="seg" data-key="res"><button data-val="2160">4K</button><button data-val="1080">1080p</button><button data-val="720">720p</button></div></div>
-      <div class="set"><span>Quadros por segundo</span>
-        <div class="seg" data-key="fps"><button data-val="24">24</button><button data-val="30">30</button><button data-val="60">60</button></div></div>
-      <div class="set col"><span>Microfone (entrada de áudio)</span>
-        <select id="micSelect" data-key="audioId"></select>
-        <div class="meter"><i id="meterBar"></i></div></div>
-      <label class="set"><span>Reduzir ruído do microfone</span><input type="checkbox" class="switch" data-key="denoise"></label>
-      <p class="hint small left">4K e 60 fps dependem do aparelho e da câmera escolhida. O app avisa o que o iPhone realmente entregou. Os nomes dos microfones aparecem depois que a câmera é ligada.</p>
+        <div class="set"><span>Cor do texto</span>
+          <div class="seg" data-key="color">
+            <button data-val="#ffffff">Branco</button><button data-val="#ffe14d">Amarelo</button><button data-val="#7dffb0">Verde</button>
+          </div></div>
+        <div class="set"><span>Alinhamento</span>
+          <div class="seg" data-key="align"><button data-val="center">Centro</button><button data-val="left">Esquerda</button></div></div>
+        <div class="set"><span>Contagem regressiva</span>
+          <div class="seg" data-key="countdown"><button data-val="0">Não</button><button data-val="3">3 s</button><button data-val="5">5 s</button></div></div>
 
-      <label class="set"><span>Espelhar texto (para vidro/espelho)</span><input type="checkbox" class="switch" data-key="mirror"></label>
-      <label class="set"><span>Linha-guia de leitura</span><input type="checkbox" class="switch" data-key="marker"></label>
-      <label class="set"><span>Rolar o texto ao começar a gravar</span><input type="checkbox" class="switch" data-key="autoScroll"></label>
+        <label class="set"><span>Espelhar texto (para vidro/espelho)</span><input type="checkbox" class="switch" data-key="mirror"></label>
+        <label class="set"><span>Linha-guia de leitura</span><input type="checkbox" class="switch" data-key="marker"></label>
+        <label class="set"><span>Rolar o texto ao começar a gravar</span><input type="checkbox" class="switch" data-key="autoScroll"></label>
+
+        <div class="set col"><span>Caixa de texto sobre a câmera</span>
+          <button id="btnBoxFromSettings" class="btn">Ajustar tamanho e posição da caixa</button></div>
+        <p class="hint small left">Cada orientação (vertical, horizontal com a lente à esquerda e à direita) guarda a sua própria caixa.</p>
+      </section>
+
+      <section id="tab-format" hidden>
+        <div class="fmt-summary" id="fmtSummary"></div>
+        <div class="set"><span>Resolução</span>
+          <div class="seg" data-key="res"><button data-val="2160">4K</button><button data-val="1080">1080p</button><button data-val="720">720p</button></div></div>
+        <div class="set"><span>Quadros por segundo</span>
+          <div class="seg" data-key="fps"><button data-val="24">24</button><button data-val="30">30</button><button data-val="60">60</button></div></div>
+        <div class="set"><span>Qualidade (taxa de bits)</span>
+          <div class="seg" data-key="bitrate"><button data-val="0.6">Econômica</button><button data-val="1">Padrão</button><button data-val="1.6">Alta</button></div></div>
+        <div class="set col"><span>Microfone (entrada de áudio)</span>
+          <select id="micSelect" data-key="audioId"></select>
+          <div class="meter"><i id="meterBar"></i></div></div>
+        <label class="set"><span>Reduzir ruído do microfone</span><input type="checkbox" class="switch" data-key="denoise"></label>
+        <p class="hint small left">4K e 60 fps dependem do aparelho e da câmera escolhida; o app avisa o que o iPhone realmente entregou. Qualidade “Alta” gera arquivos maiores e reduz a duração máxima de cada gravação. Os nomes dos microfones aparecem depois que a câmera é ligada.</p>
+      </section>
     </div>
   </div>
 

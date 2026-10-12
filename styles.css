@@ -101,12 +101,19 @@ button:disabled { opacity: .4; }
   -webkit-mask-image: linear-gradient(transparent 0, #000 9%, #000 88%, transparent 100%);
   mask-image: linear-gradient(transparent 0, #000 9%, #000 88%, transparent 100%);
 }
+/* com câmera o texto fica numa caixa; posição e tamanho vêm do JS (inline) */
 #prompter.cam #textArea {
-  top: calc(env(safe-area-inset-top) + 56px);
-  bottom: auto;
-  height: calc(var(--area) * (100% - env(safe-area-inset-top) - 56px));
+  border-radius: 14px;
   background: rgba(0, 0, 0, var(--bgop));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
+#prompter.cam #mirrorWrap {
+  -webkit-mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
+}
+#prompter.cam #scroller { padding-left: calc(var(--margin) * 1%); padding-right: calc(var(--margin) * 1%); }
 #mirrorWrap { position: absolute; inset: 0; }
 #mirrorWrap.mirror { transform: scaleX(-1); }
 #scroller {
@@ -146,7 +153,7 @@ button:disabled { opacity: .4; }
   padding: 30px calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
   background: linear-gradient(transparent, rgba(0, 0, 0, .78) 55%);
 }
-.row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.row { display: flex; align-items: center; justify-content: center; gap: 12px; }
 #prompter.dim .bars { opacity: .3; }
 
 .stepper {
@@ -221,26 +228,35 @@ button:disabled { opacity: .4; }
 .meter i { display: block; height: 100%; width: 0; background: #34c759; transition: width .06s; }
 .hint.left { text-align: left; margin-top: 10px; }
 
-/* paisagem + câmera: texto numa caixa retangular na lateral, perto da lente */
-#prompter.cam.side #textArea {
-  top: calc(env(safe-area-inset-top) + 56px);
-  bottom: calc(env(safe-area-inset-bottom) + 84px);
-  height: auto;
-  left: calc(env(safe-area-inset-left) + 8px);
-  right: auto;
-  width: calc(var(--boxw) * 1vw);
-  border-radius: 14px;
-  background: rgba(0, 0, 0, var(--bgop));
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18);
-  -webkit-mask-image: none;
-  mask-image: none;
+/* ---------- editar caixa de texto ---------- */
+#boxEdit {
+  position: absolute; z-index: 7; border: 2px solid var(--accent); border-radius: 14px;
+  background: rgba(255, 176, 32, .07); touch-action: none; cursor: move;
 }
-#prompter.cam.side.side-right #textArea { left: auto; right: calc(env(safe-area-inset-right) + 8px); }
-#prompter.cam.side #mirrorWrap {
-  -webkit-mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
-  mask-image: linear-gradient(transparent 0, #000 10%, #000 90%, transparent 100%);
+.hdl { position: absolute; width: 44px; height: 44px; display: grid; place-items: center; touch-action: none; }
+.hdl::after { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid #000; }
+.hdl[data-h=nw] { left: -22px; top: -22px; cursor: nwse-resize; }
+.hdl[data-h=ne] { right: -22px; top: -22px; cursor: nesw-resize; }
+.hdl[data-h=sw] { left: -22px; bottom: -22px; cursor: nesw-resize; }
+.hdl[data-h=se] { right: -22px; bottom: -22px; cursor: nwse-resize; }
+.hdl[data-h=n] { left: 50%; top: -22px; margin-left: -22px; cursor: ns-resize; }
+.hdl[data-h=s] { left: 50%; bottom: -22px; margin-left: -22px; cursor: ns-resize; }
+.hdl[data-h=w] { left: -22px; top: 50%; margin-top: -22px; cursor: ew-resize; }
+.hdl[data-h=e] { right: -22px; top: 50%; margin-top: -22px; cursor: ew-resize; }
+#prompter.editing .bars { display: none; }
+#boxbar {
+  position: absolute; z-index: 9; width: max-content; max-width: calc(100% - 24px);
+  display: grid; gap: 8px; justify-items: center; padding: 10px 12px; border-radius: 16px;
+  background: rgba(44, 44, 46, .88); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }
-#prompter.side #scroller { padding-left: 14px; padding-right: 14px; }
-@media (orientation: landscape) and (min-height: 521px) {
-  #prompter.cam.side #textArea { bottom: calc(env(safe-area-inset-bottom) + 190px); }
+#boxbar span { font-size: 12px; color: #d1d1d6; text-align: center; }
+
+/* ---------- abas dos ajustes / resumo do formato ---------- */
+.seg.tabs { display: flex; margin: 6px 0 10px; }
+.seg.tabs button { flex: 1; padding: 8px 12px; }
+.fmt-summary { background: var(--card2); border-radius: 12px; padding: 10px 12px; font-size: 14px; display: grid; gap: 4px; margin-bottom: 6px; }
+.fmt-summary b { color: var(--muted); font-weight: 600; }
+#hud.tap {
+  flex: 0 1 auto; margin: 0 auto; padding: 8px 10px; border-radius: 999px; cursor: pointer;
+  background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }

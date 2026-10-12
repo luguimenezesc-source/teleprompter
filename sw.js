@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir offline. Troque o número da versão ao publicar mudanças.
-const CACHE = 'teleprompter-v2';
+const CACHE = 'teleprompter-v3';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
